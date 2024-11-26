@@ -10,7 +10,7 @@
 - **Java Swing**: Tạo giao diện người dùng cho client.
 - **MySQL**: Lưu trữ thông tin người chơi và dữ liệu game.
 
-## Cấu trúc dự án
+## Cấu trúc dự án (Mô hình MVC)
 Gồm 2 phần chính: client và server.
 ### Client
 - **controller**: Các lớp điều khiển cho client `Client` và `SocketHandle`.

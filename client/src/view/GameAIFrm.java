@@ -5,9 +5,8 @@ import controller.Client;
 import java.awt.GridLayout;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
-import javax.swing.ImageIcon;
+import javax.swing.*;
 import java.util.ArrayList;
-import javax.swing.JOptionPane;
 
 import model.Point;
 import model.XOButton;
@@ -364,7 +363,18 @@ public class GameAIFrm extends javax.swing.JFrame {
         mainMenu.add(exitMenuItem);
 
         jMenuBar1.add(mainMenu);
+        JMenu hintMenu = new JMenu("Gợi ý");
+        hintMenu.setToolTipText("Nhấn để xem gợi ý");
+        hintMenu.setMnemonic('G'); // Alt+G để truy cập nhanh menu
 
+        JMenuItem hintMenuItem = new JMenuItem("Xem gợi ý");
+        hintMenuItem.setAccelerator(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S, java.awt.event.InputEvent.CTRL_DOWN_MASK));
+        hintMenuItem.setToolTipText("Ctrl+S để xem gợi ý");
+        hintMenuItem.addActionListener(evt -> provideHint()); // Gắn sự kiện gọi hàm provideHint
+
+        hintMenu.add(hintMenuItem);
+
+        jMenuBar1.add(hintMenu);
         helpMenu.setText("Help");
 
         helpMenuItem.setAccelerator(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F2, java.awt.event.InputEvent.CTRL_DOWN_MASK));
@@ -1076,7 +1086,41 @@ public class GameAIFrm extends javax.swing.JFrame {
 
         return matrix;
     }
+    private void provideHint() {
+        // Calculate the best move for the player (X)
+        int[] hintMove = calcNextMove(4);
 
+        if (hintMove != null) {
+            XOButton suggestedButton = Buttons[hintMove[0]][hintMove[1]];
+
+            // Only provide hint if the button is not already used
+            if (suggestedButton.isEnabled()) {
+                // Create a hint icon
+                ImageIcon hintIcon = new ImageIcon("assets/image/ai.png"); // You'll need to create this icon
+
+                // Temporarily overlay the hint icon
+                suggestedButton.setHintIcon(hintIcon);
+
+                // Reset the hint after a few seconds
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(3000); // Hint shows for 3 seconds
+
+                        // Ensure we're updating on the Event Dispatch Thread
+                        javax.swing.SwingUtilities.invokeLater(() -> {
+                            suggestedButton.clearHintIcon();
+                        });
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }).start();
+            } else {
+                JOptionPane.showMessageDialog(this, "Không có nước đi gợi ý khả thi.", "Gợi ý", JOptionPane.INFORMATION_MESSAGE);
+            }
+        } else {
+            JOptionPane.showMessageDialog(this, "Không thể tìm nước đi gợi ý.", "Gợi ý", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
     private javax.swing.JLabel botLabel;
     private javax.swing.JButton competitorButtonImage;
     private javax.swing.JLabel competitorCurrentPosition;

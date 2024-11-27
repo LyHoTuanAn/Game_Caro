@@ -11,7 +11,32 @@ public class XOButton extends JButton {
     public int value = 0;
     private final ImageIcon xImageIcon;
     private final ImageIcon oImageIcon;
+    private ImageIcon hintIcon;
+    private boolean showHintIcon = false;
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
 
+        // If hint icon is set, draw it over the button
+        if (showHintIcon && hintIcon != null) {
+            // Calculate position to center the hint icon
+            int x = (getWidth() - hintIcon.getIconWidth()) / 2;
+            int y = (getHeight() - hintIcon.getIconHeight()) / 2;
+
+            hintIcon.paintIcon(this, g, x, y);
+        }
+    }
+
+    public void setHintIcon(ImageIcon icon) {
+        this.hintIcon = icon;
+        this.showHintIcon = true;
+        repaint();
+    }
+
+    public void clearHintIcon() {
+        this.showHintIcon = false;
+        repaint();
+    }
     public XOButton(int xImageIcon, int y) {
         this.xImageIcon = new ImageIcon("assets/image/x3.jpg");
         oImageIcon = new ImageIcon("assets/image/o3.jpg");

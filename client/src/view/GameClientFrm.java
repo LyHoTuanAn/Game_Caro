@@ -18,10 +18,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.util.List;
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JLabel;
-import javax.swing.Timer;
+import javax.swing.*;
 import java.util.ArrayList;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
@@ -31,7 +28,6 @@ import javax.sound.sampled.DataLine;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.SourceDataLine;
 import javax.sound.sampled.TargetDataLine;
-import javax.swing.JOptionPane;
 
 import model.User;
 
@@ -41,7 +37,7 @@ import model.User;
  * @author Admin
  */
 public class GameClientFrm extends javax.swing.JFrame {
-
+    private int currentPlayer;
     private final User competitor;
     private final JButton[][] button;
     private final int[][] competitorMatrix;
@@ -555,6 +551,21 @@ public class GameClientFrm extends javax.swing.JFrame {
         mainMenu.add(exitMenuItem);
 
         jMenuBar1.add(mainMenu);
+
+
+        JMenu suggestionMenu = new javax.swing.JMenu("Gợi ý");
+        JMenuItem suggestionMenuItem = new javax.swing.JMenuItem("Gợi ý");
+        suggestionMenuItem.setAccelerator(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F3, java.awt.event.InputEvent.CTRL_DOWN_MASK));
+        suggestionMenuItem.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                hintMenuActionPerformed(evt);
+            }
+        });
+        suggestionMenu.add(suggestionMenuItem);
+        jMenuBar1.add(mainMenu);
+        jMenuBar1.add(suggestionMenu);
+        jMenuBar1.add(helpMenu);
+
 
         helpMenu.setText("Help");
 
@@ -1592,6 +1603,533 @@ public class GameClientFrm extends javax.swing.JFrame {
             Client.openView(Client.View.GAME_NOTICE, "Bạn đã thua", "Đang thiết lập ván chơi mới");
         }
     }
+
+//---------------------------------------AI suggests moves for players ---------------------------------------
+
+    private int evaluateBoard(int[][] board, int player) {
+        int score = 0;
+
+        // Duyệt hàng, cột và đường chéo
+        score += evaluateLines(board, player, true);  // Hàng
+        score += evaluateLines(board, player, false); // Cột
+        score += evaluateDiagonals(board, player);    // Đường chéo
+
+        // Tăng trọng số tổng cho bàn cờ với nhiều chuỗi mở
+        if (score > 10000) {
+            score *= 1.2; // Tăng 20% điểm nếu bàn cờ đang có lợi thế lớn
+        }
+
+        return score;
+    }
+
+
+    private int evaluateLines(int[][] board, int player, boolean isRow) {
+        int score = 0;
+
+        for (int i = 0; i < size; i++) {
+            int count = 0, block = 0;
+            for (int j = 0; j < size; j++) {
+                int cell = isRow ? board[i][j] : board[j][i];
+
+                if (cell == player) {
+                    count++;
+                } else if (cell != 0) {
+                    block++;
+                    if (count > 0) {
+                        score += calculateScore(count, block, player);
+                        count = 0;
+                        block = 1;
+                    }
+                } else {
+                    if (count > 0) {
+                        score += calculateScore(count, block, player);
+                    }
+                    count = 0;
+                    block = 0;
+                }
+            }
+
+            if (count > 0) {
+                score += calculateScore(count, block, player);
+            }
+        }
+        return score;
+    }
+
+
+    private int evaluateDiagonals(int[][] board, int player) {
+        int score = 0;
+
+        // Duyệt đường chéo chính
+        for (int d = -(size - 1); d < size; d++) {
+            int count = 0, block = 0;
+            for (int i = Math.max(0, d), j = Math.max(0, -d); i < size && j < size; i++, j++) {
+                if (board[i][j] == player) {
+                    count++;
+                } else if (board[i][j] != 0) {
+                    block++;
+                    if (count > 0) {
+                        score += calculateScore(count, block, player) * 1.5; // Tăng điểm 50% cho đường chéo
+                        count = 0;
+                        block = 1;
+                    }
+                } else {
+                    if (count > 0) {
+                        score += calculateScore(count, block, player) * 1.5;
+                    }
+                    count = 0;
+                    block = 0;
+                }
+            }
+            if (count > 0) {
+                score += calculateScore(count, block, player) * 1.5;
+            }
+        }
+
+        // Duyệt đường chéo phụ (tương tự như trên)
+        for (int d = 0; d < 2 * size - 1; d++) {
+            int count = 0, block = 0;
+            for (int i = Math.max(0, d - size + 1), j = Math.min(size - 1, d); i < size && j >= 0; i++, j--) {
+                if (board[i][j] == player) {
+                    count++;
+                } else if (board[i][j] != 0) {
+                    block++;
+                    if (count > 0) {
+                        score += calculateScore(count, block, player) * 1.5;
+                        count = 0;
+                        block = 1;
+                    }
+                } else {
+                    if (count > 0) {
+                        score += calculateScore(count, block, player) * 1.5;
+                    }
+                    count = 0;
+                    block = 0;
+                }
+            }
+            if (count > 0) {
+                score += calculateScore(count, block, player) * 1.5;
+            }
+        }
+
+        return score;
+    }
+
+
+    private int calculateScore(int count, int block, int player) {
+        if (count >= 5) {
+            return 100000; // Winning move
+        } else if (block == 0) {
+            if (count == 4) return 15000; // Open four
+            if (count == 3) return 5000;  // Open three
+            if (count == 2) return 500;   // Open two
+        } else if (block == 1) {
+            if (count == 4) return 8000;  // Blocked four
+            if (count == 3) return 1000;  // Blocked three
+            if (count == 2) return 100;   // Blocked two
+        }
+
+        // Encourage formation of open sequences with potential to grow
+        if (count >= 2 && block == 0) {
+            return 300 * count;
+        }
+
+        return 0;
+    }
+
+
+
+    private int[] alphaBetaSearch(int depth, int alpha, int beta, int player, boolean isMaximizing) {
+        if (depth == 0 || isGameOver()) {
+            return new int[]{evaluateBoard(matrix, player), -1, -1};
+        }
+
+        int bestScore = isMaximizing ? Integer.MIN_VALUE : Integer.MAX_VALUE;
+        int[] bestMove = {-1, -1};
+
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (matrix[i][j] == 0) { // Only consider empty cells
+                    matrix[i][j] = isMaximizing ? player : 3 - player;
+
+                    // Check for immediate win or block
+                    if (checkWin(matrix, i, j, player)) {
+                        matrix[i][j] = 0; // Undo move
+                        return new int[]{isMaximizing ? 100000 : -100000, i, j};
+                    }
+
+                    int[] currentMove = alphaBetaSearch(depth - 1, alpha, beta, player, !isMaximizing);
+                    matrix[i][j] = 0; // Undo move
+
+                    if (isMaximizing) {
+                        if (currentMove[0] > bestScore) {
+                            bestScore = currentMove[0];
+                            bestMove = new int[]{i, j};
+                        }
+                        alpha = Math.max(alpha, bestScore);
+                    } else {
+                        if (currentMove[0] < bestScore) {
+                            bestScore = currentMove[0];
+                            bestMove = new int[]{i, j};
+                        }
+                        beta = Math.min(beta, bestScore);
+                    }
+
+                    if (beta <= alpha) {
+                        break; // Prune
+                    }
+                }
+            }
+        }
+
+        return new int[]{bestScore, bestMove[0], bestMove[1]};
+    }
+
+    // Helper function to check for an immediate winning move
+    private boolean checkWin(int[][] board, int row, int col, int player) {
+        // Check horizontal, vertical, and diagonal directions for five in a row
+        return checkDirection(board, row, col, player, 1, 0) // Horizontal
+                || checkDirection(board, row, col, player, 0, 1) // Vertical
+                || checkDirection(board, row, col, player, 1, 1) // Diagonal /
+                || checkDirection(board, row, col, player, 1, -1); // Diagonal \
+    }
+
+    // Helper function to check a specific direction
+    private boolean checkDirection(int[][] board, int row, int col, int player, int deltaRow, int deltaCol) {
+        int count = 0;
+        for (int i = -4; i <= 4; i++) {
+            int newRow = row + i * deltaRow;
+            int newCol = col + i * deltaCol;
+            if (newRow >= 0 && newRow < size && newCol >= 0 && newCol < size && board[newRow][newCol] == player) {
+                count++;
+                if (count == 5) {
+                    return true;
+                }
+            } else {
+                count = 0;
+            }
+        }
+        return false;
+    }
+
+
+
+    private boolean isGameOver() {
+        return checkRowWin() == 1 || checkColumnWin() == 1 || checkRightCrossWin() == 1 || checkLeftCrossWin() == 1;
+    }
+
+
+    private int[] checkForImmediateWin(int player) {
+        // Kiểm tra các ô trên bàn cờ
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (matrix[i][j] == 0) { // Chỉ xem xét các ô trống
+                    matrix[i][j] = 1; // Đặt quân của người chơi
+
+                    // Kiểm tra xem có phải nước đi thắng ngay lập tức không
+                    if (checkWin(matrix, i, j, 1)) {
+                        matrix[i][j] = 0; // Hoàn tác nước đi
+                        return new int[]{i, j}; // Trả về nước đi thắng
+                    }
+
+                    matrix[i][j] = 0; // Hoàn tác nước đi
+                }
+            }
+        }
+
+        return null; // Không tìm thấy nước đi thắng ngay lập tức
+    }
+
+    private int[] blockImmediateWin(int player) {
+        // Kiểm tra các ô trên bàn cờ
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (matrix[i][j] == 0) { // Chỉ xem xét các ô trống
+                    matrix[i][j] = 2; // Đặt quân của đối thủ
+
+                    // Kiểm tra xem có phải nước đi chặn thắng ngay lập tức không
+                    if (checkWin(matrix, i, j, 2)) {
+                        matrix[i][j] = 0; // Hoàn tác nước đi
+                        return new int[]{i, j}; // Trả về nước đi chặn
+                    }
+
+                    matrix[i][j] = 0; // Hoàn tác nước đi
+                }
+            }
+        }
+
+        return null; // Không tìm thấy nước đi chặn thắng ngay lập tức
+    }
+
+    private int[] getSuggestedMove(int player) {
+        if (player == 1) { // X
+            return findBestMoveForX();
+        } else { // O
+            return findBestMoveForO();
+        }
+    }
+
+    private int[] findBestMoveForX() {
+        int[] winningMove = checkForImmediateWin(1); // 1 là X
+        if (winningMove != null) {
+            return winningMove;
+        }
+
+        int[] blockingMove = blockImmediateWin(2); // 2 là O
+        if (blockingMove != null) {
+            return blockingMove;
+        }
+
+        // Ưu tiên tạo chuỗi 4 nước liên tiếp cho người chơi "O"
+        int[] createFourMove = findCreateFourMove(1); // 1 là người chơi "O"
+        if (createFourMove != null) {
+            return createFourMove;
+        }
+
+        // Ưu tiên chặn 4 nước liên tiếp của đối thủ
+        int[] blockFourMove = findBlockFourMove(2); // 2 là người chơi đối thủ
+        if (blockFourMove != null) {
+            return blockFourMove;
+        }
+
+        // Nếu không có 4 nước liên tiếp, kiểm tra 3 nước liên tiếp chưa bị chặn
+        int[] blockThreeMove = findBlockThreeMove(2); // 2 là người chơi đối thủ
+        if (blockThreeMove != null) {
+            return blockThreeMove;
+        }
+
+        // Nếu không có nước chặn, sử dụng thuật toán alpha-beta
+        int[] result = alphaBetaSearch(4, Integer.MIN_VALUE, Integer.MAX_VALUE, 1, true);
+        if (result[1] != -1 && result[2] != -1) {
+            return new int[]{result[1], result[2]};
+        }
+
+        // Nếu không có nước đi nào được tìm thấy, trả về một nước đi mặc định
+        return findDefaultMove();
+    }
+
+    private int[] findBestMoveForO() {
+        int[] winningMove = checkForImmediateWin(2); // 2 là O
+        if (winningMove != null) {
+            return winningMove;
+        }
+
+        int[] blockingMove = blockImmediateWin(1); // 1 là X
+        if (blockingMove != null) {
+            return blockingMove;
+        }
+
+        // Ưu tiên tạo chuỗi 4 nước liên tiếp cho người chơi "O"
+        int[] createFourMove = findCreateFourMove(1); // 1 là người chơi "O"
+        if (createFourMove != null) {
+            return createFourMove;
+        }
+
+        // Ưu tiên chặn 4 nước liên tiếp của đối thủ
+        int[] blockFourMove = findBlockFourMove(2); // 2 là người chơi đối thủ
+        if (blockFourMove != null) {
+            return blockFourMove;
+        }
+
+        // Nếu không có 4 nước liên tiếp, kiểm tra 3 nước liên tiếp chưa bị chặn
+        int[] blockThreeMove = findBlockThreeMove(2); // 2 là người chơi đối thủ
+        if (blockThreeMove != null) {
+            return blockThreeMove;
+        }
+
+        // Nếu không có nước chặn, sử dụng thuật toán alpha-beta
+        int[] result = alphaBetaSearch(4, Integer.MIN_VALUE, Integer.MAX_VALUE, 1, true);
+        if (result[1] != -1 && result[2] != -1) {
+            return new int[]{result[1], result[2]};
+        }
+
+
+        return findDefaultMove();
+    }
+    private int[] findDefaultMove() {
+        // Tìm nước đi đầu tiên trống trên bảng
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (matrix[i][j] == 0) { // Giả sử ô trống được đánh dấu bằng 0
+                    return new int[]{i, j};
+                }
+            }
+        }
+
+        // Nếu không tìm thấy nước đi nào, trả về null
+        return null;
+    }
+
+    private int[] findCreateFourMove(int myPlayer) {
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (matrix[i][j] == 0) {
+                    matrix[i][j] = myPlayer; // Giả sử đánh quân của người chơi hiện tại
+                    if (isThreeInARow(matrix, i, j, myPlayer) && !isThreeInARowWithTwoBlocks(matrix, i, j, myPlayer)) {
+                        if (isFourInARow(matrix, i, j, myPlayer) && !isFourInARowWithTwoBlocks(matrix, i, j, myPlayer)) {
+                            matrix[i][j] = 0;
+                            return new int[]{i, j};
+                        }
+                    }
+                    matrix[i][j] = 0;
+                }
+            }
+        }
+        return null;
+    }
+
+    private int[] findBlockFourMove(int opponentPlayer) {
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (matrix[i][j] == 0) {
+                    matrix[i][j] = 1; // Giả sử đánh quân của người chơi hiện tại
+                    if (isFourInARow(matrix, i, j, opponentPlayer) && !isFourInARowWithTwoBlocks(matrix, i, j, opponentPlayer)) {
+                        matrix[i][j] = 0;
+                        return new int[]{i, j};
+                    }
+                    matrix[i][j] = 0;
+                }
+            }
+        }
+        return null;
+    }
+
+    private int[] findBlockThreeMove(int opponentPlayer) {
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (matrix[i][j] == 0) {
+                    matrix[i][j] = 1; // Giả sử đánh quân của người chơi hiện tại
+                    if (isThreeInARow(matrix, i, j, opponentPlayer) && !isThreeInARowWithTwoBlocks(matrix, i, j, opponentPlayer)) {
+                        matrix[i][j] = 0;
+                        return new int[]{i, j};
+                    }
+                    matrix[i][j] = 0;
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean isFourInARow(int[][] board, int row, int col, int player) {
+        int[][] directions = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
+        for (int[] dir : directions) {
+            if (checkDirectionWithBlock(board, row, col, player, dir[0], dir[1], 4)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isThreeInARow(int[][] board, int row, int col, int player) {
+        int[][] directions = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
+        for (int[] dir : directions) {
+            if (checkDirectionWithBlock(board, row, col, player, dir[0], dir[1], 3)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isFourInARowWithTwoBlocks(int[][] board, int row, int col, int player) {
+        int[][] directions = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
+        for (int[] dir : directions) {
+            if (checkDirectionWithBlock(board, row, col, player, dir[0], dir[1], 4) &&
+                    checkDirectionWithBlock(board, row, col, player, -dir[0], -dir[1], 4)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isThreeInARowWithTwoBlocks(int[][] board, int row, int col, int player) {
+        int[][] directions = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
+        for (int[] dir : directions) {
+            if (checkDirectionWithBlock(board, row, col, player, dir[0], dir[1], 3) &&
+                    checkDirectionWithBlock(board, row, col, player, -dir[0], -dir[1], 3)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean checkDirectionWithBlock(int[][] board, int row, int col, int player, int deltaRow, int deltaCol, int length) {
+        int count = 0;
+        int blockedEnds = 0;
+
+        // Kiểm tra chiều thuận
+        for (int i = 1; i <= length; i++) {
+            int newRow = row + i * deltaRow;
+            int newCol = col + i * deltaCol;
+
+            if (newRow < 0 || newRow >= size || newCol < 0 || newCol >= size) {
+                blockedEnds++;
+                break;
+            }
+
+            if (board[newRow][newCol] == player) {
+                count++;
+            } else if (board[newRow][newCol] != 0) {
+                blockedEnds++;
+                break;
+            }
+        }
+
+        // Kiểm tra chiều ngược
+        for (int i = 1; i <= length; i++) {
+            int newRow = row - i * deltaRow;
+            int newCol = col - i * deltaCol;
+
+            if (newRow < 0 || newRow >= size || newCol < 0 || newCol >= size) {
+                blockedEnds++;
+                break;
+            }
+
+            if (board[newRow][newCol] == player) {
+                count++;
+            } else if (board[newRow][newCol] != 0) {
+                blockedEnds++;
+                break;
+            }
+        }
+
+        // Kiểm tra số quân và số đầu bị chặn
+        return count == length && blockedEnds < 2;
+    }
+
+    private void hintMenuActionPerformed(java.awt.event.ActionEvent evt) {
+        // Reset các ô được gợi ý trước đó
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (button[i][j].getIcon() != null && button[i][j].getIcon().toString().contains("ai.png")) {
+                    button[i][j].setIcon(null);
+                }
+            }
+        }
+
+        // Tìm nước đi gợi ý
+        int[] suggestedMove = getSuggestedMove(currentPlayer);
+
+        if (suggestedMove != null) {
+            int row = suggestedMove[0];
+            int col = suggestedMove[1];
+
+            // Đặt biểu tượng gợi ý
+            button[row][col].setIcon(new ImageIcon("assets/image/ai.png"));
+
+            // Hiển thị thông báo gợi ý
+            JOptionPane.showMessageDialog(this,
+                    "Nước đi gợi ý: Hàng " + (row + 1) + ", Cột " + (col + 1),
+                    "Gợi ý",
+                    JOptionPane.INFORMATION_MESSAGE);
+        } else {
+            JOptionPane.showMessageDialog(this, "Không tìm thấy nước đi khả thi!", "Gợi ý", JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+
+
+    //-------------------------------------------------------
+
 
     /**
      * @param args the command line arguments
